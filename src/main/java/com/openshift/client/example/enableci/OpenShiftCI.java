@@ -63,16 +63,19 @@ public class OpenShiftCI {
 			waitForApplication(jenkinsApplication);
 			waitForApplication(application);
 			embedJenkinsClient(application);
+			deployToOpenShift(project, application);
+			System.out.println("Done.");
 		} finally {
 			executor.shutdownNow();
 		}
 	}
 
 	private IUser createUser() throws OpenShiftException, FileNotFoundException, IOException {
-		System.out.println("Connecting to OpenShift...");
+		System.out.print("Connecting to OpenShift...");
 		IOpenShiftConnection connection =
 				new OpenShiftConnectionFactory()
 						.getConnection(CLIENT_ID, user, password, new OpenShiftConfiguration().getLibraServer());
+		System.out.println("Connected.");
 		return connection.getUser();
 	}
 
@@ -87,34 +90,39 @@ public class OpenShiftCI {
 	}
 
 	private IApplication getOrCreateApplication(String name, IDomain domain) {
-		System.out.println("Getting/creating application " + name + "...");
+		System.out.print("Creating application " + name + "...");
 		IApplication application = domain.getApplicationByName(name);
 		if (application == null) {
 			application = domain.createApplication(name, ICartridge.JBOSSAS_7);
+			System.out.println("done.");
+		} else {
+			System.out.println("using existing.");
 		}
 		return application;
 	}
 
 	private IApplication getOrCreateJenkins(IDomain domain) {
-		System.out.println("Getting/creating jenkins application...");
+		System.out.print("Creating jenkins application...");
 		List<IApplication> jenkinsApplications = domain.getApplicationsByCartridge(ICartridge.JENKINS_14);
 		IApplication jenkins = null;
 		if (jenkinsApplications.isEmpty()) {
 			jenkins = domain.createApplication(DEFAULT_JENKINS_NAME, ICartridge.JENKINS_14);
-			System.out.println(jenkins.getCreationLog());
+			System.out.println("done:" + jenkins.getCreationLog());
 		} else {
 			jenkins = jenkinsApplications.get(0);
+			System.out.println("using existing.");
 		}
 		return jenkins;
 	}
 
 	private void waitForApplication(IApplication application) throws InterruptedException, ExecutionException {
-		System.out.println("Waiting for application " + application.getName() + " to become accessible...");
+		System.out.print("Waiting for application " + application.getName() + " to become accessible...");
 		Future<Boolean> applicationAccessible =
 				executor.submit(new ApplicationAvailability(application));
 		if (!applicationAccessible.get()) {
 			throw new RuntimeException("OpenShift application did not get accessible while timeout...");
 		}
+		System.out.println("application ready.");
 	}
 
 	private void embedJenkinsClient(IApplication application) {
@@ -139,5 +147,15 @@ public class OpenShiftCI {
 		public Boolean call() throws Exception {
 			return application.waitForAccessible(WAIT_TIMEOUT);
 		}
+	}
+
+	private void deployToOpenShift(File project, IApplication application) throws IOException {
+		System.out.println(
+				"Pushing project " + project.getName() + " to OpenShift application " + application.getName() + ".");
+		Runtime.getRuntime().exec("git add .", null, project);
+		Runtime.getRuntime().exec("git commit -a -m \"deploying to OpenShift\"", null, project);
+		Runtime.getRuntime().exec("git remote add openshift -f " + application.getGitUrl(), null, project);
+		Runtime.getRuntime().exec("git merge openshift/master -s recursive -x ours", null, project);
+		Runtime.getRuntime().exec("git push openshift HEAD -f --progress", null, project);
 	}
 }

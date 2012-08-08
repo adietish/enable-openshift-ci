@@ -37,7 +37,7 @@ public class Main {
 			System.out.println("Exiting...");
 			jCommander.usage();
 		} catch(Exception e) {
-			System.out.println("OpenShift error: " + e.getLocalizedMessage());
+			System.out.println(e.getLocalizedMessage());
 			System.out.println("Exiting...");
 		}
 	}
