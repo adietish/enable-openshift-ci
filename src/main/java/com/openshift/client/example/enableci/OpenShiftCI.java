@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
@@ -38,12 +39,13 @@ public class OpenShiftCI {
 
 	private static final String CLIENT_ID = "enable-openshift-ci";
 	private static final String DEFAULT_DOMAIN_NAME = "openshiftci";
-	private static final long WAIT_TIMEOUT = 3 * 60 * 1000;
 	private static final String DEFAULT_JENKINS_NAME = "jenkins";
+	private static final long WAIT_TIMEOUT = 3 * 60 * 1000;
 
 	private File project;
 	private String user;
 	private String password;
+	private ExecutorService executor = Executors.newSingleThreadExecutor();
 
 	public OpenShiftCI(File project, String user, String password) {
 		this.project = project;
@@ -51,16 +53,19 @@ public class OpenShiftCI {
 		this.password = password;
 	}
 
-	public void create() throws OpenShiftException, FileNotFoundException, IOException, InterruptedException, ExecutionException {
-		IUser user = createUser();
-		IDomain domain = getOrCreateDomain(user);
-		IApplication application = getOrCreateApplication(project.getName(), domain);
-		IApplication jenkinsApplication = getOrCreateJenkins(domain);
-		System.out.println(jenkinsApplication.getCreationLog());
-		waitForApplication(jenkinsApplication);
-		waitForApplication(application);
-		IEmbeddedCartridge cartridge = application.addEmbeddableCartridge(IEmbeddableCartridge.JENKINS_14);
-		System.err.println(cartridge.getCreationLog());
+	public void create() throws OpenShiftException, FileNotFoundException, IOException, InterruptedException,
+			ExecutionException {
+		try {
+			IUser user = createUser();
+			IDomain domain = getOrCreateDomain(user);
+			IApplication application = getOrCreateApplication(project.getName(), domain);
+			IApplication jenkinsApplication = getOrCreateJenkins(domain);
+			waitForApplication(jenkinsApplication);
+			waitForApplication(application);
+			embedJenkinsClient(application);
+		} finally {
+			executor.shutdownNow();
+		}
 	}
 
 	private IUser createUser() throws OpenShiftException, FileNotFoundException, IOException {
@@ -96,6 +101,7 @@ public class OpenShiftCI {
 		IApplication jenkins = null;
 		if (jenkinsApplications.isEmpty()) {
 			jenkins = domain.createApplication(DEFAULT_JENKINS_NAME, ICartridge.JENKINS_14);
+			System.out.println(jenkins.getCreationLog());
 		} else {
 			jenkins = jenkinsApplications.get(0);
 		}
@@ -105,23 +111,33 @@ public class OpenShiftCI {
 	private void waitForApplication(IApplication application) throws InterruptedException, ExecutionException {
 		System.out.println("Waiting for application " + application.getName() + " to become accessible...");
 		Future<Boolean> applicationAccessible =
-				Executors.newSingleThreadExecutor().submit(new ApplicationAcessible(application));
+				executor.submit(new ApplicationAvailability(application));
 		if (!applicationAccessible.get()) {
 			throw new RuntimeException("OpenShift application did not get accessible while timeout...");
 		}
 	}
 
-	private class ApplicationAcessible implements Callable<Boolean> {
+	private void embedJenkinsClient(IApplication application) {
+		IEmbeddedCartridge jenkinsClient = application.getEmbeddedCartridge(IEmbeddableCartridge.JENKINS_14);
+		if (jenkinsClient == null) {
+			jenkinsClient = application.addEmbeddableCartridge(IEmbeddableCartridge.JENKINS_14);
+			System.out.println(jenkinsClient.getCreationLog());
+		} else {
+			System.out.println("Jenkins client is already embedded. Url is " + jenkinsClient.getUrl()
+					+ ". You may look up the credentials in the environment variables of your application.");
+		}
+	}
+
+	private class ApplicationAvailability implements Callable<Boolean> {
 
 		private IApplication application;
 
-		public ApplicationAcessible(IApplication application) {
+		public ApplicationAvailability(IApplication application) {
 			this.application = application;
 		}
 
 		public Boolean call() throws Exception {
 			return application.waitForAccessible(WAIT_TIMEOUT);
 		}
-
 	}
 }
