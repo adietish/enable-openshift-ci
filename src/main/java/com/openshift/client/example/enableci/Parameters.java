@@ -74,40 +74,6 @@ public class Parameters {
 		return project;
 	}
 
-	@Parameter(names = "-a", description = "the OpenShift application name", required = true, validateValueWith = NameValidator.class)
-	private String applicationName;
-
-	public static class NameValidator implements IValueValidator<String> {
-
-		public void validate(String name, String value) throws ParameterException {
-			if (value == null
-					|| value.length() > 16) {
-				throw new ParameterException(
-						"The application name {0} is too long. It may only be at most 16 characters long.");
-			} else if (!isAlpanumericAndLowercase(value)) {
-				throw new ParameterException(
-						"The application name {0} is not valid. The name may only consist of lowercase alphanumeric characters");
-			}
-		}
-
-		private boolean isAlpanumericAndLowercase(String name) {
-			for (char ch : name.toCharArray()) {
-				if (Character.isLetter(ch)) {
-					if (!Character.isLowerCase(ch)) {
-						return false;
-					}
-				} else if (!Character.isDigit(ch)) {
-					return false;
-				}
-			}
-			return true;
-		}
-	}
-
-	public String getApplicationName() {
-		return applicationName;
-	}
-
 	@Parameter(names = "-u", description = "the OpenShift user", required = true)
 	private String user;
 
