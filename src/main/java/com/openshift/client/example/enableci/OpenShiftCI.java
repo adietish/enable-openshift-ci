@@ -14,6 +14,7 @@ package com.openshift.client.example.enableci;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -63,7 +64,8 @@ public class OpenShiftCI {
 			waitForApplication(jenkinsApplication);
 			waitForApplication(application);
 			embedJenkinsClient(application);
-			deployToOpenShift(project, application);
+			ensureQuotaNotReached(domain);
+			deployToOpenShift(application);
 			System.out.println("Done.");
 		} finally {
 			executor.shutdownNow();
@@ -116,26 +118,35 @@ public class OpenShiftCI {
 	}
 
 	private void waitForApplication(IApplication application) throws InterruptedException, ExecutionException {
-		System.out.print("Waiting for application " + application.getName() + " to become accessible...");
+		System.out.print("Waiting for application " + application.getName() + " to become reachable...");
 		Future<Boolean> applicationAccessible =
 				executor.submit(new ApplicationAvailability(application));
 		if (!applicationAccessible.get()) {
-			throw new RuntimeException("OpenShift application did not get accessible while timeout...");
+			throw new RuntimeException("OpenShift application did not get reachable while timeout...");
 		}
 		System.out.println("application ready.");
 	}
 
 	private void embedJenkinsClient(IApplication application) {
+		System.out.print("Embedding jenkins client...");
 		IEmbeddedCartridge jenkinsClient = application.getEmbeddedCartridge(IEmbeddableCartridge.JENKINS_14);
 		if (jenkinsClient == null) {
 			jenkinsClient = application.addEmbeddableCartridge(IEmbeddableCartridge.JENKINS_14);
 			System.out.println(jenkinsClient.getCreationLog());
 		} else {
-			System.out.println("Jenkins client is already embedded. Url is " + jenkinsClient.getUrl()
-					+ ". You may look up the credentials in the environment variables of your application.");
+			System.out.println("using existing at " + jenkinsClient.getUrl() + ".");
 		}
 	}
 
+	private void ensureQuotaNotReached(IDomain domain) {
+		System.out.print("Checking for free application slot...");
+		if (domain.getApplications().size() >= 3) {
+			throw new RuntimeException("You already have 3 applications. Jenkins will need another free application slot for a builder application.");
+		} else {
+			System.out.println("Ok.");
+		}
+	}
+	
 	private class ApplicationAvailability implements Callable<Boolean> {
 
 		private IApplication application;
@@ -149,13 +160,40 @@ public class OpenShiftCI {
 		}
 	}
 
-	private void deployToOpenShift(File project, IApplication application) throws IOException {
+	private void deployToOpenShift(IApplication application) throws IOException, InterruptedException {
 		System.out.println(
-				"Pushing project " + project.getName() + " to OpenShift application " + application.getName() + ".");
-		Runtime.getRuntime().exec("git add .", null, project);
-		Runtime.getRuntime().exec("git commit -a -m \"deploying to OpenShift\"", null, project);
-		Runtime.getRuntime().exec("git remote add openshift -f " + application.getGitUrl(), null, project);
-		Runtime.getRuntime().exec("git merge openshift/master -s recursive -x ours", null, project);
-		Runtime.getRuntime().exec("git push openshift HEAD -f --progress", null, project);
+				"Pushing project " + project.getName() + " to OpenShift application " + application.getName() + ":");
+		exec("git add .");
+		exec("git commit -a -m 'deploying'");
+		exec("git remote add openshift -f " + application.getGitUrl());
+		exec("git merge openshift/master -s recursive -X ours");
+		exec("git push openshift HEAD -f --progress");
+	}
+
+	private void exec(String command) throws IOException, InterruptedException {
+		Process process = Runtime.getRuntime().exec(command, null, project);
+
+		InputStream processOut = process.getInputStream();
+		InputStream processErr = process.getErrorStream();
+
+		byte[] buf = new byte[10];
+		int read = -1;
+		while ((read = processOut.read(buf)) != -1)
+		{
+			for (int i = 0; i < read; i++)
+			{
+				System.out.write(buf[i]);
+			}
+		}
+
+		while ((read = processErr.read(buf)) != -1)
+		{
+			for (int i = 0; i < read; i++)
+			{
+				System.out.write(buf[i]);
+			}
+		}
+
+		process.waitFor();
 	}
 }
