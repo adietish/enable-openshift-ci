@@ -16,6 +16,7 @@ import java.text.MessageFormat;
 
 import com.beust.jcommander.IStringConverter;
 import com.beust.jcommander.IValueValidator;
+import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 
@@ -24,6 +25,8 @@ import com.beust.jcommander.ParameterException;
  */
 public class Parameters {
 
+	private JCommander jCommander = new JCommander();
+	
 	@Parameter(names = "-p", description = "the project (folder) that we'll enable CI for", required = true, converter = ProjectConverter.class, validateValueWith = ProjectValidator.class)
 	private File project;
 
@@ -119,4 +122,13 @@ public class Parameters {
 		return password;
 	}
 
+	public void parse(String[] argv) {
+		jCommander.addObject(this);
+		jCommander.parse(argv);
+	}
+
+	public void usage() {
+		jCommander.usage();
+	}
+	
 }

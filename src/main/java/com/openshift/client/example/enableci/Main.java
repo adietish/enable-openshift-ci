@@ -23,19 +23,16 @@ import com.openshift.client.OpenShiftException;
 public class Main {
 
 	public static void main(String[] argv) throws OpenShiftException, FileNotFoundException, IOException, InterruptedException, ExecutionException {
-		JCommander jCommander = new JCommander();
+		Parameters parameters = new Parameters();
 		try {
-			Parameters parameters = new Parameters();
-			jCommander.addObject(parameters);
-			jCommander.parse(argv);
-
+			parameters.parse(argv);
 			OpenShiftCI ci = new OpenShiftCI(
 					parameters.getProject(), parameters.getUser(), parameters.getPassword());
 			ci.create();
 		} catch (ParameterException e) {
 			System.out.println(e.getLocalizedMessage());
 			System.out.println("Exiting...");
-			jCommander.usage();
+			parameters.usage();
 		} catch(Exception e) {
 			System.out.println(e.getLocalizedMessage());
 			System.out.println("Exiting...");
