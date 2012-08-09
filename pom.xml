@@ -26,7 +26,7 @@
 				<configuration>
 					<archive>
 						<manifest>
-							<mainClass>Main</mainClass>
+							<mainClass>com.openshift.client.example.enableci.Main</mainClass>
 						</manifest>
 						<manifestEntries>
 							<mode>development</mode>
