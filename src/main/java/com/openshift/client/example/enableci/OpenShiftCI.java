@@ -16,10 +16,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import com.openshift.client.IApplication;
@@ -46,7 +43,6 @@ public class OpenShiftCI {
 	private File project;
 	private String user;
 	private String password;
-	private ExecutorService executor = Executors.newSingleThreadExecutor();
 
 	public OpenShiftCI(File project, String user, String password) {
 		this.project = project;
@@ -56,7 +52,6 @@ public class OpenShiftCI {
 
 	public void create() throws OpenShiftException, FileNotFoundException, IOException, InterruptedException,
 			ExecutionException {
-		try {
 			IUser user = createUser();
 			IDomain domain = getOrCreateDomain(user);
 			IApplication application = getOrCreateApplication(project.getName(), domain);
@@ -67,9 +62,6 @@ public class OpenShiftCI {
 			ensureQuotaNotReached(domain);
 			deployToOpenShift(application);
 			System.out.println("Done.");
-		} finally {
-			executor.shutdownNow();
-		}
 	}
 
 	private IUser createUser() throws OpenShiftException, FileNotFoundException, IOException {
@@ -97,9 +89,9 @@ public class OpenShiftCI {
 		if (application == null) {
 			application = domain.createApplication(name, ICartridge.JBOSSAS_7);
 			System.out.println("done.");
-		} else if (application.getCartridge() != ICartridge.JBOSSAS_7) {
+		} else if (!application.getCartridge().equals(ICartridge.JBOSSAS_7)) {
 			throw new RuntimeException(
-					"You already have an application called " + name + " but it's type is not " + ICartridge.JBOSSAS_7
+					"You already have an application called " + name + " but it's not a " + ICartridge.JBOSSAS_7.getName() + " application."
 							+ ".");
 		} else {
 			System.out.println("using existing.");
@@ -124,7 +116,7 @@ public class OpenShiftCI {
 	private void waitForApplication(IApplication application) throws InterruptedException, ExecutionException {
 		System.out.print("Waiting for application " + application.getName() + " to become reachable...");
 		Future<Boolean> applicationAccessible =
-				executor.submit(new ApplicationAvailability(application));
+				application.waitForAccessibleAsync(WAIT_TIMEOUT);
 		if (!applicationAccessible.get()) {
 			throw new RuntimeException("OpenShift application did not get reachable while timeout...");
 		}
@@ -151,19 +143,6 @@ public class OpenShiftCI {
 		}
 	}
 	
-	private class ApplicationAvailability implements Callable<Boolean> {
-
-		private IApplication application;
-
-		public ApplicationAvailability(IApplication application) {
-			this.application = application;
-		}
-
-		public Boolean call() throws Exception {
-			return application.waitForAccessible(WAIT_TIMEOUT);
-		}
-	}
-
 	private void deployToOpenShift(IApplication application) throws IOException, InterruptedException {
 		System.out.println(
 				"Pushing project " + project.getName() + " to OpenShift application " + application.getName() + ":");
