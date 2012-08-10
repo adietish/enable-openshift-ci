@@ -97,7 +97,7 @@ public class OpenShiftCI {
 		if (application == null) {
 			application = domain.createApplication(name, ICartridge.JBOSSAS_7);
 			System.out.println("done.");
-		} else if (application.getCartridge() == ICartridge.JBOSSAS_7) {
+		} else if (application.getCartridge() != ICartridge.JBOSSAS_7) {
 			throw new RuntimeException(
 					"You already have an application called " + name + " but it's type is not " + ICartridge.JBOSSAS_7
 							+ ".");
