@@ -1,5 +1,3 @@
-package com.openshift.client.example.enableci;
-
 /*******************************************************************************
  * Copyright (c) 2012 Red Hat, Inc. Distributed under license by Red Hat, Inc.
  * All rights reserved. This program is made available under the terms of the
@@ -8,12 +6,12 @@ package com.openshift.client.example.enableci;
  * 
  * Contributors: Red Hat, Inc. - initial API and implementation
  ******************************************************************************/
+package com.openshift.client.example.enableci;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
-import com.beust.jcommander.JCommander;
 import com.beust.jcommander.ParameterException;
 import com.openshift.client.OpenShiftException;
 
@@ -22,7 +20,8 @@ import com.openshift.client.OpenShiftException;
  */
 public class Main {
 
-	public static void main(String[] argv) throws OpenShiftException, FileNotFoundException, IOException, InterruptedException, ExecutionException {
+	public static void main(String[] argv) throws OpenShiftException, FileNotFoundException, IOException,
+			InterruptedException, ExecutionException {
 		Parameters parameters = new Parameters();
 		try {
 			parameters.parse(argv);
@@ -33,7 +32,7 @@ public class Main {
 			System.out.println(e.getLocalizedMessage());
 			System.out.println("Exiting...");
 			parameters.usage();
-		} catch(Exception e) {
+		} catch (Exception e) {
 			System.out.println(e.getLocalizedMessage());
 			System.out.println("Exiting...");
 		}
