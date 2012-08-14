@@ -25,9 +25,12 @@ import com.openshift.client.IDomain;
 import com.openshift.client.IEmbeddableCartridge;
 import com.openshift.client.IEmbeddedCartridge;
 import com.openshift.client.IOpenShiftConnection;
+import com.openshift.client.IOpenShiftSSHKey;
+import com.openshift.client.ISSHPublicKey;
 import com.openshift.client.IUser;
 import com.openshift.client.OpenShiftConnectionFactory;
 import com.openshift.client.OpenShiftException;
+import com.openshift.client.SSHPublicKey;
 import com.openshift.client.configuration.OpenShiftConfiguration;
 
 /**
@@ -39,6 +42,9 @@ public class OpenShiftCI {
 	private static final String DEFAULT_DOMAIN_NAME = "openshiftci";
 	private static final String DEFAULT_JENKINS_NAME = "jenkins";
 	private static final long WAIT_TIMEOUT = 3 * 60 * 1000;
+
+	private static final File SSH_PUBLIC_KEY =
+			new File(System.getProperty("user.home") + File.separator + ".ssh" + File.separator + "id_rsa.pub");
 
 	private File project;
 	private String user;
@@ -52,16 +58,15 @@ public class OpenShiftCI {
 
 	public void create() throws OpenShiftException, FileNotFoundException, IOException, InterruptedException,
 			ExecutionException {
-			IUser user = createUser();
-			IDomain domain = getOrCreateDomain(user);
-			IApplication application = getOrCreateApplication(project.getName(), domain);
-			IApplication jenkinsApplication = getOrCreateJenkins(domain);
-			waitForApplication(jenkinsApplication);
-			waitForApplication(application);
-			embedJenkinsClient(application);
-			ensureQuotaNotReached(domain);
-			deployToOpenShift(application);
-			System.out.println("Done.");
+		IUser user = createUser();
+		IDomain domain = getOrCreateDomain(user);
+		IApplication application = getOrCreateApplication(project.getName(), domain);
+		IApplication jenkinsApplication = getOrCreateJenkins(domain);
+		waitForApplication(jenkinsApplication);
+		waitForApplication(application);
+		embedJenkinsClient(application);
+		deployToOpenShift(application);
+		System.out.println("Done.");
 	}
 
 	private IUser createUser() throws OpenShiftException, FileNotFoundException, IOException {
@@ -73,14 +78,29 @@ public class OpenShiftCI {
 		return connection.getUser();
 	}
 
-	private IDomain getOrCreateDomain(IUser user) {
+	private IDomain getOrCreateDomain(IUser user) throws FileNotFoundException, OpenShiftException, IOException {
+		System.out.print("Creating domain " + DEFAULT_DOMAIN_NAME + "...");
 		IDomain domain = user.getDefaultDomain();
 		if (domain == null) {
-			System.out.println("Creating domain " + DEFAULT_DOMAIN_NAME + "...");
 			domain = user.createDomain(DEFAULT_DOMAIN_NAME);
+			System.out.println("done");
+			addSSHKey(user);
+		} else {
+			System.out.println("using existing.");
 		}
 
 		return domain;
+	}
+
+	private void addSSHKey(IUser user) throws FileNotFoundException, IOException {
+		if (!SSH_PUBLIC_KEY.exists()) {
+			throw new IllegalStateException("no public key " + SSH_PUBLIC_KEY.getAbsolutePath() + "found on your local machine");
+		}
+		ISSHPublicKey key = new SSHPublicKey(SSH_PUBLIC_KEY);
+		IOpenShiftSSHKey addedKey = user.getSSHKeyByPublicKey(key.getPublicKey());
+		if (addedKey == null) {
+			user.putSSHKey(String.valueOf(System.currentTimeMillis()), key);
+		}
 	}
 
 	private IApplication getOrCreateApplication(String name, IDomain domain) {
@@ -91,7 +111,8 @@ public class OpenShiftCI {
 			System.out.println("done.");
 		} else if (!application.getCartridge().equals(ICartridge.JBOSSAS_7)) {
 			throw new RuntimeException(
-					"You already have an application called " + name + " but it's not a " + ICartridge.JBOSSAS_7.getName() + " application."
+					"You already have an application called " + name + " but it's not a "
+							+ ICartridge.JBOSSAS_7.getName() + " application."
 							+ ".");
 		} else {
 			System.out.println("using existing.");
@@ -134,15 +155,6 @@ public class OpenShiftCI {
 		}
 	}
 
-	private void ensureQuotaNotReached(IDomain domain) {
-		System.out.print("Checking for free application slot...");
-		if (domain.getApplications().size() >= 3) {
-			throw new RuntimeException("You already have 3 applications. Jenkins will need another free application slot for a builder application.");
-		} else {
-			System.out.println("Ok.");
-		}
-	}
-	
 	private void deployToOpenShift(IApplication application) throws IOException, InterruptedException {
 		System.out.println(
 				"Pushing project " + project.getName() + " to OpenShift application " + application.getName() + ":");
