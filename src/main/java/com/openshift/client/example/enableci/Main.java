@@ -22,13 +22,16 @@ public class Main {
 			OpenShiftCI ci = new OpenShiftCI(
 					parameters.getProject(), parameters.getUser(), parameters.getPassword());
 			ci.create();
+			Runtime.getRuntime().exit(0);
 		} catch (ParameterException e) {
 			System.out.println(e.getLocalizedMessage());
 			System.out.println("Exiting...");
 			parameters.usage();
+			Runtime.getRuntime().exit(-1);
 		} catch (Exception e) {
 			System.out.println(e.getLocalizedMessage());
 			System.out.println("Exiting...");
+			Runtime.getRuntime().exit(-1);
 		}
 	}
 }
