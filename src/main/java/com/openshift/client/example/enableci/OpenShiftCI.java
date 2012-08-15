@@ -68,9 +68,9 @@ public class OpenShiftCI {
 		embedJenkinsClient(application);
 		addGitRemote(application);
 		System.out.println(
-				"Jenkins is in place. It'll build with your next push to the "+ DEFAULT_APPLICATION_NAME +
-				". You'll now want to add the openshift-profile to your pom, merge your application into " +
-				"your local project and push it upstream.");
+			"Jenkins is in place. It'll build with your next push to the " + DEFAULT_APPLICATION_NAME + "application." +
+			"You'll now want to add the openshift-profile to your pom, merge your application into " +
+			"your local project and push it upstream.");
 	}
 
 	private IUser createUser() throws OpenShiftException, FileNotFoundException, IOException {
