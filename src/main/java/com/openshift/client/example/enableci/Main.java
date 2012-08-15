@@ -8,20 +8,14 @@
  ******************************************************************************/
 package com.openshift.client.example.enableci;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.util.concurrent.ExecutionException;
-
 import com.beust.jcommander.ParameterException;
-import com.openshift.client.OpenShiftException;
 
 /**
  * @author Andre Dietisheim
  */
 public class Main {
 
-	public static void main(String[] argv) throws OpenShiftException, FileNotFoundException, IOException,
-			InterruptedException, ExecutionException {
+	public static void main(String[] argv) {
 		Parameters parameters = new Parameters();
 		try {
 			parameters.parse(argv);
