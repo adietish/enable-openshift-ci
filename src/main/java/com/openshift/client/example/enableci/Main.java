@@ -25,7 +25,8 @@ public class Main {
 		Parameters parameters = new Parameters();
 		try {
 			parameters.parse(argv);
-			OpenShiftCI ci = new OpenShiftCI(parameters.getUser(), parameters.getPassword());
+			OpenShiftCI ci = new OpenShiftCI(
+					parameters.getProject(), parameters.getUser(), parameters.getPassword());
 			ci.create();
 		} catch (ParameterException e) {
 			System.out.println(e.getLocalizedMessage());

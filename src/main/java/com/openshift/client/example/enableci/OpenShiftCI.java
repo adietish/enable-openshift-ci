@@ -14,6 +14,7 @@ package com.openshift.client.example.enableci;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -48,8 +49,10 @@ public class OpenShiftCI {
 
 	private String user;
 	private String password;
+	private File project;
 
-	public OpenShiftCI(String user, String password) {
+	public OpenShiftCI(File project, String user, String password) {
+		this.project = project;
 		this.user = user;
 		this.password = password;
 	}
@@ -63,10 +66,11 @@ public class OpenShiftCI {
 		waitForApplication(jenkinsApplication);
 		waitForApplication(application);
 		embedJenkinsClient(application);
-		System.out
-				.println("Jenkins is in place. It'll build with your next push to the " + DEFAULT_APPLICATION_NAME 
-						+ ". You'll now want to add the openshift-profile to your pom, merge your application at "
-						+ application.getGitUrl() + " into your local project and push it upstream.");
+		addGitRemote(application);
+		System.out.println(
+				"Jenkins is in place. It'll build with your next push to the "+ DEFAULT_APPLICATION_NAME +
+				". You'll now want to add the openshift-profile to your pom, merge your application into " +
+				"your local project and push it upstream.");
 	}
 
 	private IUser createUser() throws OpenShiftException, FileNotFoundException, IOException {
@@ -154,5 +158,38 @@ public class OpenShiftCI {
 		} else {
 			System.out.println("using existing at " + jenkinsClient.getUrl() + ".");
 		}
+	}
+
+	private void addGitRemote(IApplication application) throws IOException, InterruptedException {
+		System.out.println(
+				"Adding application git repository to your local repository...");
+		exec("git remote add openshift -f " + application.getGitUrl());
+	}
+
+	private void exec(String command) throws IOException, InterruptedException {
+		Process process = Runtime.getRuntime().exec(command, null, project);
+
+		InputStream processOut = process.getInputStream();
+		InputStream processErr = process.getErrorStream();
+
+		byte[] buf = new byte[10];
+		int read = -1;
+		while ((read = processOut.read(buf)) != -1)
+		{
+			for (int i = 0; i < read; i++)
+			{
+				System.out.write(buf[i]);
+			}
+		}
+
+		while ((read = processErr.read(buf)) != -1)
+		{
+			for (int i = 0; i < read; i++)
+			{
+				System.out.write(buf[i]);
+			}
+		}
+
+		process.waitFor();
 	}
 }
