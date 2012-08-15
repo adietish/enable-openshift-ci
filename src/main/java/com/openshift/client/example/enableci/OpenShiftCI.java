@@ -14,7 +14,6 @@ package com.openshift.client.example.enableci;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -40,18 +39,17 @@ public class OpenShiftCI {
 
 	private static final String CLIENT_ID = "enable-openshift-ci";
 	private static final String DEFAULT_DOMAIN_NAME = "openshiftci";
+	private static final String DEFAULT_APPLICATION_NAME = "openshiftci";
 	private static final String DEFAULT_JENKINS_NAME = "jenkins";
 	private static final long WAIT_TIMEOUT = 3 * 60 * 1000;
 
 	private static final File SSH_PUBLIC_KEY =
 			new File(System.getProperty("user.home") + File.separator + ".ssh" + File.separator + "id_rsa.pub");
 
-	private File project;
 	private String user;
 	private String password;
 
-	public OpenShiftCI(File project, String user, String password) {
-		this.project = project;
+	public OpenShiftCI(String user, String password) {
 		this.user = user;
 		this.password = password;
 	}
@@ -60,13 +58,15 @@ public class OpenShiftCI {
 			ExecutionException {
 		IUser user = createUser();
 		IDomain domain = getOrCreateDomain(user);
-		IApplication application = getOrCreateApplication(project.getName(), domain);
+		IApplication application = getOrCreateApplication(domain);
 		IApplication jenkinsApplication = getOrCreateJenkins(domain);
 		waitForApplication(jenkinsApplication);
 		waitForApplication(application);
 		embedJenkinsClient(application);
-		deployToOpenShift(application);
-		System.out.println("Done.");
+		System.out
+				.println("Jenkins is in place. It'll build with your next push to the " + DEFAULT_APPLICATION_NAME 
+						+ ". You'll now want to add the openshift-profile to your pom, merge your application at "
+						+ application.getGitUrl() + " into your local project and push it upstream.");
 	}
 
 	private IUser createUser() throws OpenShiftException, FileNotFoundException, IOException {
@@ -94,7 +94,8 @@ public class OpenShiftCI {
 
 	private void addSSHKey(IUser user) throws FileNotFoundException, IOException {
 		if (!SSH_PUBLIC_KEY.exists()) {
-			throw new IllegalStateException("no public key " + SSH_PUBLIC_KEY.getAbsolutePath() + "found on your local machine");
+			throw new IllegalStateException("no public key " + SSH_PUBLIC_KEY.getAbsolutePath()
+					+ "found on your local machine");
 		}
 		ISSHPublicKey key = new SSHPublicKey(SSH_PUBLIC_KEY);
 		IOpenShiftSSHKey addedKey = user.getSSHKeyByPublicKey(key.getPublicKey());
@@ -103,15 +104,15 @@ public class OpenShiftCI {
 		}
 	}
 
-	private IApplication getOrCreateApplication(String name, IDomain domain) {
-		System.out.print("Creating application " + name + "...");
-		IApplication application = domain.getApplicationByName(name);
+	private IApplication getOrCreateApplication(IDomain domain) {
+		System.out.print("Creating application " + DEFAULT_APPLICATION_NAME + "...");
+		IApplication application = domain.getApplicationByName(DEFAULT_APPLICATION_NAME);
 		if (application == null) {
-			application = domain.createApplication(name, ICartridge.JBOSSAS_7);
+			application = domain.createApplication(DEFAULT_APPLICATION_NAME, ICartridge.JBOSSAS_7);
 			System.out.println("done.");
 		} else if (!application.getCartridge().equals(ICartridge.JBOSSAS_7)) {
 			throw new RuntimeException(
-					"You already have an application called " + name + " but it's not a "
+					"You already have an application called " + DEFAULT_APPLICATION_NAME + " but it's not a "
 							+ ICartridge.JBOSSAS_7.getName() + " application."
 							+ ".");
 		} else {
@@ -153,42 +154,5 @@ public class OpenShiftCI {
 		} else {
 			System.out.println("using existing at " + jenkinsClient.getUrl() + ".");
 		}
-	}
-
-	private void deployToOpenShift(IApplication application) throws IOException, InterruptedException {
-		System.out.println(
-				"Pushing project " + project.getName() + " to OpenShift application " + application.getName() + ":");
-		exec("git add .");
-		exec("git commit -a -m 'deploying'");
-		exec("git remote add openshift -f " + application.getGitUrl());
-		exec("git merge openshift/master -s recursive -X ours");
-		exec("git push openshift HEAD -f --progress");
-	}
-
-	private void exec(String command) throws IOException, InterruptedException {
-		Process process = Runtime.getRuntime().exec(command, null, project);
-
-		InputStream processOut = process.getInputStream();
-		InputStream processErr = process.getErrorStream();
-
-		byte[] buf = new byte[10];
-		int read = -1;
-		while ((read = processOut.read(buf)) != -1)
-		{
-			for (int i = 0; i < read; i++)
-			{
-				System.out.write(buf[i]);
-			}
-		}
-
-		while ((read = processErr.read(buf)) != -1)
-		{
-			for (int i = 0; i < read; i++)
-			{
-				System.out.write(buf[i]);
-			}
-		}
-
-		process.waitFor();
 	}
 }
